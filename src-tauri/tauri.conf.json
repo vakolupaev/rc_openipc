@@ -1,19 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "rc_openipc",
+  "productName": "vulcan_rc",
   "version": "0.1.0",
-  "identifier": "com.ivany.rc_openipc",
+  "identifier": "com.ivany.vulcan_rc",
   "build": {
     "beforeDevCommand": "yarn dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "yarn build",
-    "frontendDist": "../dist"
+    "frontendDist": "../build"
   },
   "app": {
-    "withGlobalTauri": true,
     "windows": [
       {
-        "title": "rc_openipc",
+        "title": "vulcan_rc",
         "width": 800,
         "height": 600
       }
