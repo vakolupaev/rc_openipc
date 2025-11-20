@@ -1,50 +1,65 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
+import { listen } from '@tauri-apps/api/event';
+import { useEffect } from "react";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  useEffect(() => {
+    let pc = new RTCPeerConnection({
+      iceServers: []
+    })
+    let log = msg => {
+      document.getElementById('div').innerHTML += msg + '<br>'
+    }
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+    pc.ontrack = function (event) {
+      var el = document.createElement(event.track.kind)
+      el.srcObject = event.streams[0]
+      el.autoplay = true
+      el.controls = true
+
+      document.getElementById('remoteVideos').appendChild(el)
+    }
+
+    pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
+    pc.onicecandidate = event => {
+      if (event.candidate === null) {
+        invoke('set_local_session_description_webview', { local_session_description_webview: btoa(JSON.stringify(pc.localDescription)) })
+        document.getElementById('localSessionDescription').value = btoa(JSON.stringify(pc.localDescription))
+      }
+    }
+
+    // Offer to receive 1 audio, and 2 video tracks
+    // pc.addTransceiver('audio', {'direction': 'recvonly'})
+    pc.addTransceiver('video', {'direction': 'recvonly'})
+    // pc.addTransceiver('video', {'direction': 'recvonly'})
+    pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
+
+    let sd = "";
+
+    let unlisten = listen('new-remote_session_description', (event) => {
+      sd = event.payload;
+      document.getElementById('remoteSessionDescription').value = event.payload;
+
+      if (sd !== '') {
+        setTimeout(() => {
+          try {
+            pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sd))))
+          } catch (e) {
+            alert(e)
+          }
+        },0)
+      } else {
+        return alert('Session Description must not be empty')
+      }
+      
+    });
+  })
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <>
+      {/* <div id="remoteVideos"></div> */}
+    </>
   );
 }
 
