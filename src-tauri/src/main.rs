@@ -2,5 +2,5 @@
 
 #[tokio::main]
 async fn main() {
-    rc_openipc_lib::run();
+    vulcan_rc_lib::run();
 }

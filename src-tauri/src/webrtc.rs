@@ -1,6 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
-
 use anyhow::Result;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::net::UdpSocket;
@@ -23,26 +21,16 @@ use crate::{AppData};
 pub async fn proc(app: &AppHandle) -> Result<()> {
     let mut m = MediaEngine::default();
 
-    
-
-    // return Ok(());
     m.register_default_codecs()?;
 
-    // Create a InterceptorRegistry. This is the user configurable RTP/RTCP Pipeline.
-    // This provides NACKs, RTCP Reports and other features. If you use `webrtc.NewPeerConnection`
-    // this is enabled by default. If you are manually managing You MUST create a InterceptorRegistry
-    // for each PeerConnection.
     let mut registry = Registry::new();
-    // Use the default set of Interceptors
     registry = register_default_interceptors(registry, &mut m)?;
     
-    // Create the API object with the MediaEngine
     let api = APIBuilder::new()
         .with_media_engine(m)
         .with_interceptor_registry(registry)
         .build();
 
-    // Prepare the configuration
     let config = RTCConfiguration {
         ice_servers: vec![RTCIceServer {
             urls: vec![],
@@ -51,10 +39,8 @@ pub async fn proc(app: &AppHandle) -> Result<()> {
         ..Default::default()
     };
 
-    // Create a new RTCPeerConnection
     let peer_connection = Arc::new(api.new_peer_connection(config).await?);
 
-    // Create Track that we send video back to browser on
     let video_track = Arc::new(TrackLocalStaticRTP::new(
         RTCRtpCodecCapability {
             mime_type: MIME_TYPE_VP8.to_owned(),
@@ -64,14 +50,10 @@ pub async fn proc(app: &AppHandle) -> Result<()> {
         "webrtc-rs".to_owned(),
     ));
 
-    // Add this newly created track to the PeerConnection
     let rtp_sender = peer_connection
         .add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
         .await?;
 
-    // Read incoming RTCP packets
-    // Before these packets are returned they are processed by interceptors. For things
-    // like NACK this needs to be called.
     tokio::spawn(async move {
         let mut rtcp_buf = vec![0u8; 1500];
         while let Ok((_, _)) = rtp_sender.read(&mut rtcp_buf).await {}
@@ -81,8 +63,7 @@ pub async fn proc(app: &AppHandle) -> Result<()> {
     let (done_tx, mut done_rx) = tokio::sync::mpsc::channel::<()>(1);
 
     let done_tx1 = done_tx.clone();
-    // Set the handler for ICE connection state
-    // This will notify you when the peer has connected/disconnected
+
     peer_connection.on_ice_connection_state_change(Box::new(
         move |connection_state: RTCIceConnectionState| {
             println!("Connection State has changed {connection_state}");
@@ -94,50 +75,35 @@ pub async fn proc(app: &AppHandle) -> Result<()> {
     ));
 
     let done_tx2 = done_tx.clone();
-    // Set the handler for Peer connection state
-    // This will notify you when the peer has connected/disconnected
+
     peer_connection.on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
         println!("Peer Connection State has changed: {s}");
 
         if s == RTCPeerConnectionState::Failed {
-            // Wait until PeerConnection has had no network activity for 30 seconds or another failure. It may be reconnected using an ICE Restart.
-            // Use webrtc.PeerConnectionStateDisconnected if you are interested in detecting faster timeout.
-            // Note that the PeerConnection may come back from PeerConnectionStateDisconnected.
             println!("Peer Connection has gone to failed exiting: Done forwarding");
             let _ = done_tx2.try_send(());
         }
 
         Box::pin(async {})
     }));
+    
+    while app.state::<Mutex<AppData>>().lock().await.local_session_description_webview.clone() == String::from("") {}    
 
-    tokio::time::sleep(Duration::from_secs(3)).await;
-
-    // Wait for the offer to be pasted
     let line = {app.state::<Mutex<AppData>>().lock().await.local_session_description_webview.clone()};
 
     let desc_data = signal::decode(line.as_str())?;
     let offer = serde_json::from_str::<RTCSessionDescription>(&desc_data)?;
 
-    
-
-    // Set the remote SessionDescription
     peer_connection.set_remote_description(offer).await?;
 
-    // Create an answer
     let answer = peer_connection.create_answer(None).await?;
 
-    // Create channel that is blocked until ICE Gathering is complete
     let mut gather_complete = peer_connection.gathering_complete_promise().await;
 
-    // Sets the LocalDescription, and starts our UDP listeners
     peer_connection.set_local_description(answer).await?;
 
-    // Block until ICE Gathering is complete, disabling trickle ICE
-    // we do this because we only can exchange one signaling message
-    // in a production application you should exchange ICE Candidates via OnICECandidate
     let _ = gather_complete.recv().await;
 
-    // Output the answer in base64 so we can paste it in browser
     if let Some(local_desc) = peer_connection.local_description().await {
         let json_str = serde_json::to_string(&local_desc)?;
         let b64 = signal::encode(&json_str);
@@ -149,17 +115,15 @@ pub async fn proc(app: &AppHandle) -> Result<()> {
         println!("generate local_description failed!");
     }
 
-    // Open a UDP Listener for RTP Packets on port 5004
     let listener = UdpSocket::bind("127.0.0.1:5004").await?;
 
     let done_tx3 = done_tx.clone();
-    // Read RTP packets forever and send them to the WebRTC Client
+
     tokio::spawn(async move {
-        let mut inbound_rtp_packet = vec![0u8; 1600]; // UDP MTU
+        let mut inbound_rtp_packet = vec![0u8; 1600];
         while let Ok((n, _)) = listener.recv_from(&mut inbound_rtp_packet).await {
             if let Err(err) = video_track.write(&inbound_rtp_packet[..n]).await {
                 if Error::ErrClosedPipe == err {
-                    // The peerConnection has been closed.
                 } else {
                     println!("video_track write err: {err}");
                 }
