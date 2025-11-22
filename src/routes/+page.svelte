@@ -44,7 +44,20 @@
 
 <style>
 
+video {
+  height: 100vh;
+  width: 100vw;
+}
+
+* {
+  padding: 0;
+  margin: 0;
+}
+
+
 :root {
+  padding: 0;
+  margin: 0;
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 24px;

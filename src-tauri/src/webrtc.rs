@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
 use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_VP8};
+use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
 use webrtc::api::APIBuilder;
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::ice_transport::ice_server::RTCIceServer;
@@ -43,7 +43,7 @@ pub async fn proc(app: &AppHandle) -> Result<()> {
 
     let video_track = Arc::new(TrackLocalStaticRTP::new(
         RTCRtpCodecCapability {
-            mime_type: MIME_TYPE_VP8.to_owned(),
+            mime_type: MIME_TYPE_H264.to_owned(),
             ..Default::default()
         },
         "video".to_owned(),
@@ -115,13 +115,14 @@ pub async fn proc(app: &AppHandle) -> Result<()> {
         println!("generate local_description failed!");
     }
 
-    let listener = UdpSocket::bind("127.0.0.1:5004").await?;
+    let listener = UdpSocket::bind("0.0.0.0:5004").await?;
 
     let done_tx3 = done_tx.clone();
 
     tokio::spawn(async move {
         let mut inbound_rtp_packet = vec![0u8; 1600];
         while let Ok((n, _)) = listener.recv_from(&mut inbound_rtp_packet).await {
+            // println!("{:?}", &inbound_rtp_packet[..n]);
             if let Err(err) = video_track.write(&inbound_rtp_packet[..n]).await {
                 if Error::ErrClosedPipe == err {
                 } else {
