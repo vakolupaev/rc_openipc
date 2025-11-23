@@ -6,7 +6,7 @@ mod webrtc;
 #[derive(Default)]
 pub struct AppData {
     local_session_description_webview: String,
-    _remote_session_description: String,
+    remote_session_description: String,
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -14,6 +14,12 @@ async fn set_local_session_description_webview(local_session_description_webview
     let mut state = state.lock().await;
     state.local_session_description_webview = local_session_description_webview;
     Ok(())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+async fn get_remote_session_description(state: State<'_, Mutex<AppData>>) -> Result<String, String> {
+    let state = state.lock().await.remote_session_description.clone();
+    Ok(state)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -31,7 +37,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![set_local_session_description_webview])
+        .invoke_handler(tauri::generate_handler![set_local_session_description_webview, get_remote_session_description])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

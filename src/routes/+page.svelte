@@ -14,20 +14,20 @@
   pc.onicecandidate = event => {
     if (event.candidate === null) {
 
-      invoke('set_local_session_description_webview', { local_session_description_webview: btoa(JSON.stringify(pc.localDescription)) })
+      invoke('set_local_session_description_webview', { local_session_description_webview: btoa(JSON.stringify(pc.localDescription)) })      
     }
   }
 
   listen('new-remote_session_description', (event: {payload: string}) => {
+    // console.log(event.payload);
     let sd = event.payload;
+    console.log(sd);
     if (sd !== '') {
-      setTimeout(() => {
-        try {
-          pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sd))))
-        } catch (e) {
-          alert(e)
-        }
-      },0)
+      try {
+        pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sd))))
+      } catch (e) {
+        alert(e)
+      }
     } else {
       return alert('Session Description must not be empty')
     }
@@ -63,8 +63,8 @@ video {
   line-height: 24px;
   font-weight: 400;
 
-  color: #0f0f0f;
-  background-color: #f6f6f6;
+  color: #f6f6f6;
+  background-color: #000000;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -76,7 +76,7 @@ video {
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
-    background-color: #2f2f2f;
+    background-color: #000000;
   }
 }
 

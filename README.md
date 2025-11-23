@@ -11,3 +11,5 @@ ffmpeg -re -f lavfi -i testsrc=size=640x480:rate=30 -vcodec libvpx -cpu-used 5 -
 ```
 
 gst-launch-1.0 videotestsrc ! video/x-raw,width=1920,height=1080,format=I420 ! mpph264enc ! rtph264pay config-interval=-1 ! udpsink host=172.20.10.3 port=5004
+
+gst-launch-1.0 videotestsrc ! video/x-raw,width=1920,height=1080,format=I420 ! x264enc ! rtph264pay config-interval=-1 ! udpsink host=172.20.10.3 port=5004

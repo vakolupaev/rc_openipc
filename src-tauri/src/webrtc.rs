@@ -87,11 +87,9 @@ pub async fn proc(app: &AppHandle) -> Result<()> {
         Box::pin(async {})
     }));
     
-    while app.state::<Mutex<AppData>>().lock().await.local_session_description_webview.clone() == String::from("") {}    
+    while app.state::<Mutex<AppData>>().lock().await.local_session_description_webview.clone() == String::from("") {}
 
-    let line = {app.state::<Mutex<AppData>>().lock().await.local_session_description_webview.clone()};
-
-    let desc_data = signal::decode(line.as_str())?;
+    let desc_data = signal::decode(app.state::<Mutex<AppData>>().lock().await.local_session_description_webview.clone().as_str())?;
     let offer = serde_json::from_str::<RTCSessionDescription>(&desc_data)?;
 
     peer_connection.set_remote_description(offer).await?;
@@ -102,24 +100,25 @@ pub async fn proc(app: &AppHandle) -> Result<()> {
 
     peer_connection.set_local_description(answer).await?;
 
-    let _ = gather_complete.recv().await;
+    gather_complete.recv().await;
 
     if let Some(local_desc) = peer_connection.local_description().await {
         let json_str = serde_json::to_string(&local_desc)?;
         let b64 = signal::encode(&json_str);
-        {app.state::<Mutex<AppData>>().lock().await._remote_session_description = b64.clone()};
+        {app.state::<Mutex<AppData>>().lock().await.remote_session_description = b64.clone()};
         app.emit("new-remote_session_description", b64.clone()).expect("err");
 
-        println!("{b64}");
+        println!("added");
     } else {
         println!("generate local_description failed!");
     }
 
-    let listener = UdpSocket::bind("0.0.0.0:5004").await?;
+    
 
     let done_tx3 = done_tx.clone();
 
     tokio::spawn(async move {
+        let listener = UdpSocket::bind("0.0.0.0:5004").await.unwrap();
         let mut inbound_rtp_packet = vec![0u8; 1600];
         while let Ok((n, _)) = listener.recv_from(&mut inbound_rtp_packet).await {
             // println!("{:?}", &inbound_rtp_packet[..n]);
